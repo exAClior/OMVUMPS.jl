@@ -2,6 +2,6 @@ module OMVUMPS
 
 # Write your package code here.
 include("Core.jl")
-export xxx_ham, energy_density
+export xxx_ham, energy_density, sumLeft
 
 end

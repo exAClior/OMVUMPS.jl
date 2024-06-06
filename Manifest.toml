@@ -2,7 +2,7 @@
 
 julia_version = "1.10.4"
 manifest_format = "2.0"
-project_hash = "22a82cbf8703573b7bb3f04f3fdf7531a953bb9f"
+project_hash = "f35f2ae2e1e3c38491030ea1a4b1af5e81dafa0f"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -1008,9 +1008,9 @@ version = "1.10.0"
 
 [[deps.TensorKit]]
 deps = ["HalfIntegers", "LRUCache", "LinearAlgebra", "PackageExtensionCompat", "Strided", "TensorOperations", "TupleTools", "VectorInterface", "WignerSymbols"]
-git-tree-sha1 = "b8a1378adeb990a670416935255aed81c8d600a5"
+git-tree-sha1 = "115299bbf95c9a3378397d7d6464614ce7d55062"
 uuid = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
-version = "0.12.3"
+version = "0.12.4"
 weakdeps = ["ChainRulesCore"]
 
     [deps.TensorKit.extensions]
