@@ -3,20 +3,45 @@ using TensorKit
 using MPSKit
 using Yao
 
+using OMVUMPS: transfer_matrix
+using OMVUMPS: h_expect_L, h_expect_R
+
+@testset "H AC/L" begin
+    d = 2
+    D = 3
+    h_bar = xxx_ham()
+    A = TensorMap(reshape(rand_unitary(d*D)[:,1:D],D,d,D), ℂ^D * ℂ^d, ℂ^D)
+    ψ = InfiniteMPS([A])
+    AL = ψ.AL[]
+    AR = ψ.AR[]
+
+    hal = h_expect_L(xxx_ham(), AL)
+    har = h_expect_R(xxx_ham(), AR)
+    tr(hal)
+    tr(har)
+    # @test tr(hal) ≈ tr(har)
+end
+
 @testset "sum Left/Right" begin
     d = 2
     D = 3
     h_bar = xxx_ham()
-    A = TensorMap(reshape(rand_unitary(d*D)[1:D,:],D,d,D), ℂ^D * ℂ^d, ℂ^D)
+    A = TensorMap(reshape(rand_unitary(d*D)[:,1:D],D,d,D), ℂ^D * ℂ^d, ℂ^D)
     ψ = InfiniteMPS([A])
     A_gauged = ψ.AL[]
 
     # for AL in [ψ.AL[], ψ.AR[]]
         AL = ψ.AL[]
-        @tensor ALH[i,j] := AL[][f,a,e] * AL[][i,b,f] * h_bar[][a,b,c,d] * conj(AL[][g,c,e]) * conj(AL[][j,d,g])
-        ALH = reshape(ALH,(reduce(*,size(ALH))))
-        @tensor ELL[i,j;k,l] := AL[][i,a,k] * conj(AL[][j,a,l])
-        ELL = reshape(ELL, D^2,D^2)
+        ALH = h_expect_L(h_bar, AL)
+        ALH = permute(ALH,(),(1,2))
+        EL = transfer_matrix(AL)
+
+        sum_EL = one(EL) 
+        for i in 1:100
+            sum_EL += EL^i
+        end
+
+        HL = sum_EL * ALH' 
         Lh = sumLeft(AL,h_bar,1e-8)
         prev_term = copy(ALH)
         prev_term = ELL * prev_term
@@ -31,6 +56,20 @@ using Yao
 
     # end
 end
+
+@testset "Transfer Matrix" begin
+    d = 2
+    D = 3
+    h_bar = xxx_ham()
+    A = TensorMap(reshape(rand_unitary(d*D)[:,1:D],D,d,D), ℂ^D * ℂ^d, ℂ^D)
+    ψ = InfiniteMPS([A])
+    AL = ψ.AL[]
+    E = transfer_matrix(AL)
+    U,S,Vd = tsvd(E^2000;trunc=truncdim(1));
+    cur_tr = Vd * U *S
+    @test real(cur_tr) ≈ one(cur_tr) atol=1e-10
+end
+
 
 @testset "hamiltonian" begin
     myham = xxx_ham()
