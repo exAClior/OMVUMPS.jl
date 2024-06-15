@@ -26,12 +26,12 @@ using Yao, LinearAlgebra
 # A = TensorMap(A_mat,ℂ^D*ℂ^d,ℂ^D)
 # A'
 
-    # ψ = InfiniteMPS([A])
+# ψ = InfiniteMPS([A])
 
-    # AL = ψ.AL[1]
-    # AR = ψ.AR[1]
-    # AL' * AL
-    # AR' * AR
+# AL = ψ.AL[1]
+# AR = ψ.AR[1]
+# AL' * AL
+# AR' * AR
 
 
 # @tensor testT[j,i] := A[a,b,i] * A'[j,a,b]
@@ -41,8 +41,8 @@ using Yao, LinearAlgebra
 # @tensor testT[j,i] := AR[j,a,b] * AR'[b,i,a]
 
 function xxx_ham()
-    local_term = Array(reshape(mat((kron(X,X) + kron(Y,Y) + kron(Z,Z)) /4.0), 2, 2, 2, 2))
-    return TensorMap(local_term, ℂ^2  * ℂ^2, ℂ^2 * ℂ^2)
+    local_term = Array(reshape(mat((kron(X, X) + kron(Y, Y) + kron(Z, Z)) / 4.0), 2, 2, 2, 2))
+    return TensorMap(local_term, ℂ^2 * ℂ^2, ℂ^2 * ℂ^2)
 end
 
 
@@ -56,7 +56,7 @@ function energy_density(h::TensorMap, ψ::InfiniteMPS)
     # b -- AL'-- c -- AC'--d 
     AL = ψ.AL[]
     AC = ψ.AC[]
-    @tensor energy[] := conj(AL[b,k,c]) * conj(AC[c,l,d]) * h[k,l,i,j] * AL[b,i,a] * AC[a,j,d]
+    @tensor energy[] := conj(AL[b, k, c]) * conj(AC[c, l, d]) * h[k, l, i, j] * AL[b, i, a] * AC[a, j, d]
 
     # AR = ψ.AL[]
     # @tensor energy2[] := conj(AR[c,l,d]) * conj(AC[b,k,c]) * h[k,l,i,j] * AR[a,j,d] * AC[b,i,a]
@@ -66,13 +66,6 @@ function energy_density(h::TensorMap, ψ::InfiniteMPS)
     return real(energy[][])
 end
 
-function transfer_matrix(AL::TensorMap)
-    # k---AL---i        l-----------i
-    #      a      =           EL
-    # l---AL*---j       k-----------j 
-    @tensor EL[k l;i j] := AL[k,a,i] * conj(AL[l,a,j])
-    return EL
-end
 
 function h_expect_R(h_bar::TensorMap, AR::TensorMap)
     # j--AR---f--AR----|
@@ -84,7 +77,7 @@ function h_expect_R(h_bar::TensorMap, AR::TensorMap)
     # j== AR  =b=   AR' == i  is  j ==== i
     #     |--- a ---|
 
-    @tensor ARH[j;i] := AR[j,a,f] * AR[f,b,e] * h_bar[c,d,a,b] * conj(AR[i,c,g]) * conj(AR[g,d,e])
+    @tensor ARH[j; i] := AR[j, a, f] * AR[f, b, e] * h_bar[c, d, a, b] * conj(AR[i, c, g]) * conj(AR[g, d, e])
     return ARH
 end
 
@@ -98,22 +91,22 @@ function h_expect_L(h_bar::TensorMap, AL::TensorMap)
     # j== AL' = a =  AL == i  is  j ==== i
     #      |--- b ----|
 
-    @tensor ALH[j;i] := AL[e,a,f] * AL[f,b,i] * h_bar[c,d,a,b] * conj(AL[e,c,g]) * conj(AL[g,d,j])
+    @tensor ALH[j; i] := AL[e, a, f] * AL[f, b, i] * h_bar[c, d, a, b] * conj(AL[e, c, g]) * conj(AL[g, d, j])
     return ALH
 end
 
-function sumLeft(AL::TensorMap,h_bar::TensorMap, tol::Float64)
+function sumLeft(AL::TensorMap, h_bar::TensorMap, tol::Float64)
     EL = transfer_matrix(AL)
-    ALH = h_expect_L(h_bar,AL)
-    Lh = ALH/(one(EL)-EL)
+    ALH = h_expect_L(h_bar, AL)
+    Lh = ALH / (one(EL) - EL)
     return Lh
 end
 
-function sumRight(AR::TensorMap,h_bar::TensorMap, tol::Float64)
+function sumRight(AR::TensorMap, h_bar::TensorMap, tol::Float64)
     ER = transfer_matrix(AR)
-    ARH = h_expect_R(h_bar,AR)
-    Rh =  (one(ER)-ER)\ARH
-    return Rh 
+    ARH = h_expect_R(h_bar, AR)
+    Rh = (one(ER) - ER) \ ARH
+    return Rh
 end
 
 # function VUMPS(h::TensorMap, A::TensorMap,η::T) where {T}
