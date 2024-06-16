@@ -3,7 +3,20 @@ using TensorKit
 using MPSKit
 using Yao
 
-using OMVUMPS: transfer_matrix
+@testset "Fix points" begin
+    D = 3
+    d = 2
+    A = TensorMap(reshape(rand_unitary(d * D)[:, 1:D], D, d, D), ℂ^D * ℂ^d, ℂ^D)
+    normalize!(A)
+    l, r = fixedpoints(A)
+
+    @tensor contract_lr[] := l[1; 2] * r[2; 1]
+    @test contract_lr[1] ≈ one(eltype(contract_lr)) atol = 1e-10
+
+
+end
+
+
 
 @testset "Transfer Matrix" begin
     d = 2

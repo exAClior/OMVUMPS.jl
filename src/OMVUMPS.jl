@@ -4,4 +4,7 @@ module OMVUMPS
 include("Core.jl")
 export xxx_ham, energy_density, sumLeft
 
+include("mps.jl")
+export fixedpoints, transfer_matrix
+
 end
