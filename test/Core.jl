@@ -1,9 +1,45 @@
 using OMVUMPS, Test
 using TensorKit
-using MPSKit
 using Yao
 
-using OMVUMPS: h_expect_L, h_expect_R
+@testset "VUMPS" begin
+    myham = xxx_ham()
+    d = 2
+    D = 3
+    A0 = TensorMap(randn, ComplexF64, ℂ^D * ℂ^d, ℂ^D)
+    vumps(myham, A0, tol=1e-8)
+end
+
+
+
+@testset "energy" begin
+    myham = xxx_ham()
+    ghz_A = zeros(2, 2, 2)
+    ghz_A[1, 1, 1] = one(ComplexF64)
+    ghz_A[2, 2, 2] = one(ComplexF64)
+
+    Tensor
+    Al, Ac, Ar, C = mixedCanonical(TensorMap(ghz_A, ℂ^2 * ℂ^2, ℂ^2))
+    @test energy_density(myham, Al, Ac) ≈ Yao.expect((kron(X, X) + kron(Y, Y) + kron(Z, Z) / 4.0), ghz_state(2))
+
+    myham_reg = OMVUMPS.regularize(myham, Al, Ac)
+    @test energy_density(myham_reg, Al, Ac) ≈ zero(real(eltype(myham_reg)))
+end
+
+@testset "create hamiltonian" begin
+    myham = xxx_ham()
+
+    bell_minus = zeros(2, 2)
+    bell_minus[1, 2] = 1 / sqrt(2)
+    bell_minus[2, 1] = -1 / sqrt(2)
+    bell_minus = Tensor(bell_minus, ℂ^2 * ℂ^2)
+
+    @tensor h_expec[] := conj(bell_minus[i, j]) * myham[i, j, k, l] * bell_minus[k, l]
+
+    @test real(h_expec[][]) ≈ -0.75
+end
+
+
 
 @testset "H AC/L" begin
     d = 2
@@ -58,27 +94,3 @@ end
 
 
 
-@testset "hamiltonian" begin
-    myham = xxx_ham()
-
-    bell_minus = zeros(2, 2)
-    bell_minus[1, 2] = 1 / sqrt(2)
-    bell_minus[2, 1] = -1 / sqrt(2)
-    bell_minus = Tensor(bell_minus, ℂ^2 * ℂ^2)
-
-    @tensor h_expec[] := conj(bell_minus[i, j]) * myham[i, j, k, l] * bell_minus[k, l]
-
-    @test real(h_expec[][]) ≈ -0.75
-end
-
-
-@testset "energy" begin
-    myham = xxx_ham()
-    ghz_A = zeros(2, 2, 2)
-    ghz_A[1, 1, 1] = 1
-    ghz_A[2, 2, 2] = 1
-
-    ψ = InfiniteMPS([TensorMap(ghz_A, ℂ^2 * ℂ^2, ℂ^2)])
-
-    @test energy_density(myham, ψ) ≈ Yao.expect((kron(X, X) + kron(Y, Y) + kron(Z, Z) / 4.0), ghz_state(2))
-end

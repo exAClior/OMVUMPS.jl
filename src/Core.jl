@@ -1,52 +1,12 @@
-using TensorKit, MPSKitModels
-using MPSKit
+using TensorKit
 using Yao, LinearAlgebra
-
-# d = 2
-# D =3
-
-# A = TensorMap(randn,ℂ^2*ℂ^3,ℂ^4)
-
-# @tensor testT[i;j] := A[][a,b,i] * conj(A[][a,b,j])
-# @tensor testT[i,j] := A[][a,b,i] * conj(A[][a,b,j])
-
-# @tensor testT[i,j,k] := A[i,j,k] 
-# @tensor testT[i,j,k] := A[j,i,k] 
-# @tensor testT[i,j,k] := A[i,k,j] 
-
-# @tensor testT[i,j,k] := A'[i,j,k] 
-# @tensor testT[i,j,k] := A'[j,i,k] 
-# @tensor testT[i,j,k] := A'[i,k,j] 
-# @tensor testT[i,j] := A[a b i] * A'[j a b]
-# @tensor testT[i,j] := A[a i b] * A'[b a j]
-# @tensor testT[i,j] := A[i b a] * A'[a j b]
-
-# A_mat = rand_unitary(d*D)[:,1:D]
-# A_mat' * A_mat
-# A = TensorMap(A_mat,ℂ^D*ℂ^d,ℂ^D)
-# A'
-
-# ψ = InfiniteMPS([A])
-
-# AL = ψ.AL[1]
-# AR = ψ.AR[1]
-# AL' * AL
-# AR' * AR
-
-
-# @tensor testT[j,i] := A[a,b,i] * A'[j,a,b]
-
-
-# @tensor testT[j,i] := AL[a,b,i] * AL'[j,a,b]
-# @tensor testT[j,i] := AR[j,a,b] * AR'[b,i,a]
 
 function xxx_ham()
     local_term = Array(reshape(mat((kron(X, X) + kron(Y, Y) + kron(Z, Z)) / 4.0), 2, 2, 2, 2))
     return TensorMap(local_term, ℂ^2 * ℂ^2, ℂ^2 * ℂ^2)
 end
 
-
-function energy_density(h::TensorMap, ψ::InfiniteMPS)
+function energy_density(h::TensorMap, AL::TensorMap, AC::TensorMap)
     # implements (35)
     # AL( b * i,a)
     # b -- AL -- a -- AC --d
@@ -54,82 +14,155 @@ function energy_density(h::TensorMap, ψ::InfiniteMPS)
     # b          h         d
     # b    k          l    d
     # b -- AL'-- c -- AC'--d 
-    AL = ψ.AL[]
-    AC = ψ.AC[]
     @tensor energy[] := conj(AL[b, k, c]) * conj(AC[c, l, d]) * h[k, l, i, j] * AL[b, i, a] * AC[a, j, d]
-
-    # AR = ψ.AL[]
-    # @tensor energy2[] := conj(AR[c,l,d]) * conj(AC[b,k,c]) * h[k,l,i,j] * AR[a,j,d] * AC[b,i,a]
-    # @assert energy ≈ energy2
-    # @show energy, energy2
 
     return real(energy[][])
 end
 
-
-function h_expect_R(h_bar::TensorMap, AR::TensorMap)
-    # j--AR---f--AR----|
-    #     a       b    |
-    #         h        e
-    #     c       d    |
-    # i--AR*--g--AR*---|
-
-    # j== AR  =b=   AR' == i  is  j ==== i
-    #     |--- a ---|
-
-    @tensor ARH[j; i] := AR[j, a, f] * AR[f, b, e] * h_bar[c, d, a, b] * conj(AR[i, c, g]) * conj(AR[g, d, e])
-    return ARH
+function regularize(h::TensorMap, AL::TensorMap, AC::TensorMap)
+    exp_val = energy_density(h, AL, AC)
+    return h - exp_val * id(domain(h))
 end
 
-function h_expect_L(h_bar::TensorMap, AL::TensorMap)
-    # ---AL--f--AL---i
-    # |   a      b
-    # e      h
-    # |   c      d
-    # ---AL*--g--AL*---j
+function Ẽright(v::TensorMap, A::TensorMap, fpts=fixedpoints(A))
+    l, r = fpts
 
-    # j== AL' = a =  AL == i  is  j ==== i
-    #      |--- b ----|
-
-    @tensor ALH[j; i] := AL[e, a, f] * AL[f, b, i] * h_bar[c, d, a, b] * conj(AL[e, c, g]) * conj(AL[g, d, j])
-    return ALH
+    @tensor transfer[-1; -2] := A[-1 2 1] * conj(A[-2 2 3]) * v[1; 3]
+    fixed = tr(l * v) * r
+    vNew = v - transfer + fixed
+    return vNew
 end
 
-function sumLeft(AL::TensorMap, h_bar::TensorMap, tol::Float64)
-    EL = transfer_matrix(AL)
-    ALH = h_expect_L(h_bar, AL)
-    Lh = ALH / (one(EL) - EL)
+function Ẽleft(v::TensorMap, A::TensorMap, fpts=fixedpoints(A))
+    l, r = fpts
+
+    @tensor transfer[-1; -2] := A[1 2 -2] * conj(A[3 2 -1]) * v[3; 1]
+    fixed = tr(v * r) * l
+    vNew = v - transfer + fixed
+    return vNew
+end
+
+function LhMixed(h̃::TensorMap, Al::TensorMap, C::TensorMap; tol::AbstractFloat=1e-5)
+    tol = max(tol, 1e-14)
+
+    l = id(space(Al, 1))
+    r = C * C'
+
+    @tensor b[-1; -2] := Al[4 2; 1] * Al[1 3; -2] * conj(Al[4 5; 6]) * conj(Al[6 7; -1]) * h̃[5 7; 2 3]
+
+    Lh, _ = linsolve(v -> Ẽleft(v, Al, (l, r)), b; tol)
+
     return Lh
 end
 
-function sumRight(AR::TensorMap, h_bar::TensorMap, tol::Float64)
-    ER = transfer_matrix(AR)
-    ARH = h_expect_R(h_bar, AR)
-    Rh = (one(ER) - ER) \ ARH
+
+function RhMixed(h̃, Ar, C; tol::AbstractFloat=1e-5)
+    tol = max(tol, 1e-14)
+
+    r = id(space(Ar, 1))
+    l = C' * C
+
+    @tensor b[-1; -2] := Ar[-1; 2 1] * Ar[1; 3 4] * conj(Ar[-2; 7 6]) * conj(Ar[6; 5 4]) * h̃[5 7; 2 3]
+
+    Rh, _ = linsolve(v -> Ẽright(v, Ar, (l, r)), b; tol)
+
     return Rh
 end
 
-# function VUMPS(h::TensorMap, A::TensorMap,η::T) where {T}
-#     ψ = InfiniteMPS([A])
-#     shift_h = energy_density(h,ψ)
-#     h_bar = h - shift_h * TensorMap(diagm(ones(T,reduce(*,dims(domain(h))))), codomain(h), domain(h))
-#     return nothing
-# end
+function H_Ac(v, h̃, Al, Ar, Lh, Rh)
+    # the function that applies (131) to input tensor v in the place of Ac
+    @tensor term1[-1 -2; -3] := Al[4 2; 1] * v[1 3; -3] * conj(Al[4 5; -1]) * h̃[5 -2; 2 3]
 
-# H = heisenberg_XXX(;spin = 1//2)
+    @tensor term2[-1 -2; -3] := v[-1 2; 1] * Ar[1; 3 4] * conj(Ar[-3; 5 4]) * h̃[-2 5; 2 3]
 
-# D = 137 
-# Ψ = InfiniteMPS(ℂ^2, ℂ^D)
-# algorithm1 = VUMPS(;tol_galerkin=1e-10,maxiter=100)
-# Ψ₀, envs = find_groundstate(Ψ, H, algorithm1);
+    @tensor term3[-1 -2; -3] := Lh[-1; 1] * v[1 -2; -3]
 
-# algorithm2 = GradientGrassmann(;tol=1e-15,maxiter=300)
-# Ψ₀1, envs = find_groundstate(Ψ, H, algorithm2);
-# expectation_value(Ψ₀1,H)
+    @tensor term4[-1 -2; -3] := v[-1 -2; 1] * Rh[1; -3]
 
-# H = heisenberg_XYZ()
-# Ψ = InfiniteMPS(ℂ^3, ℂ^D)
-# algorithm = VUMPS(;tol_galerkin=1e-10,dynamical_tols=false, maxiter=1000)
-# Ψ₀, envs = find_groundstate(Ψ, H, algorithm);
+    return term1 + term2 + term3 + term4
+end
 
-# expectation_value(Ψ₀,H)
+function H_C(v, h̃, Al, Ar, Lh, Rh)
+    @tensor term1[-1; -2] := Al[5 3; 1] * v[1; 2] * Ar[2; 4 7] * conj(Al[5 6; -1]) * conj(Ar[-2; 8 7]) * h̃[6 8; 3 4]
+
+    term2 = Lh * v
+
+    term3 = v * Rh
+
+    return term1 + term2 + term3
+end
+
+function calcNewCenter(h̃, Al, Ac, Ar, C; tol::AbstractFloat=1e-5, Lh=LhMixed(h̄, Al, C; tol=max(tol, 1e-15)), Rh=RhMixed(h̄, Ar, C; tol=max(tol, 1e-15)))
+    tol = max(tol, 1e-14)
+
+    _, vecs, _ = eigsolve(v -> H_Ac(v, h̃, Al, Ar, Lh, Rh), Ac, 1, :SR; tol)
+    Ãc = vecs[1]
+
+
+    _, vecs, _ = eigsolve(v -> H_C(v, h̃, Al, Ar, Lh, Rh), C, 1, :SR; tol)
+    C̃ = vecs[1]
+
+    return Ãc, C̃
+end
+
+function minAcC(Ãc, C̃; tol::AbstractFloat=1e-5)
+    tol = max(tol, 1e-14)
+
+    UlAc, _ = leftorth(Ãc, (1, 2), (3,); alg=Polar())
+
+    UlC, _ = leftorth(C̃, (1,), (2,); alg=Polar())
+
+    Al = UlAc * UlC'
+
+    C, Ar = rightOrthonormalize(Al, C̃; tol)
+    nrm = tr(C * C')
+    C /= sqrt(nrm)
+    @tensor Ac[-1 -2; -3] := Al[-1 -2; 1] * C[1; -3]
+
+    return Al, Ac, Ar, C
+end
+
+function gradientNorm(h̃, Al, Ac, Ar, C, Lh, Rh)
+    AcUpdate = H_Ac(Ac, h̃, Al, Ar, Lh, Rh)
+    CUpdate = H_C(C, h̃, Al, Ar, Lh, Rh)
+    @tensor AlCupdate[-1 -2; -3] := Al[-1 -2; 1] * CUpdate[1; -3]
+
+    return norm(AcUpdate - AlCupdate)
+end
+
+function vumps(h, A0; tol::AbstractFloat=1e-4, tolFactor::AbstractFloat=1e-1, verbose::Bool=true)
+
+    Al, Ac, Ar, C = mixedCanonical(A0)
+
+    flag = true
+    delta = 1e-5
+    i = 0
+
+    while flag && i < 10000
+        i += 1
+
+        h̃ = regularize(h, Al, Ac)
+
+        Lh = LhMixed(h̃, Al, C; tol=delta * tolFactor)
+        Rh = RhMixed(h̃, Ar, C; tol=delta * tolFactor)
+
+        delta = gradientNorm(h̃, Al, Ac, Ar, C, Lh, Rh)
+
+        delta < tol && (flag = false)
+
+        Ãc, C̃ = calcNewCenter(h̃, Al, Ac, Ar, C; tol=delta * tolFactor, Lh=Lh, Rh=Rh)
+
+        Ãl, Ãc, Ãr, C̃ = minAcC(Ãc, C̃; tol=delta * tolFactor^2)
+
+        Al, Ac, Ar, C = Ãl, Ãc, Ãr, C̃
+
+        # print current energy
+        if verbose
+            E = real(energy_density(h, Al, Ac))
+            println("iteration:\t$(i)\tenergy:\t$(E)\tgradient norm:\t$(delta)\n")
+        end
+    end
+    E = real(energy_density(h, Al, Ac))
+
+    return E, Al, Ac, Ar, C
+end
