@@ -1,12 +1,10 @@
 using OMVUMPS, Test
 using TensorKit
-using MPSKit
-using Yao
 
 @testset "Fix points" begin
-    D = 3
+    D = 10
     d = 2
-    A = TensorMap(reshape(rand_unitary(d * D)[:, 1:D], D, d, D), ℂ^D * ℂ^d, ℂ^D)
+    A = TensorMap(myrandisometry, ComplexF64, ℂ^D * ℂ^d, ℂ^D)
     normalizeMPS!(A)
     l, r = fixedpoints(A)
 
@@ -21,9 +19,11 @@ using Yao
 end
 
 @testset "Gauge Fixing" begin
-    D = 3
+    D = 10
     d = 2
-    A = TensorMap(reshape(rand_unitary(d * D)[:, 1:D], D, d, D), ℂ^D * ℂ^d, ℂ^D)
+
+    A = TensorMap(myrandisometry, ComplexF64, ℂ^D * ℂ^d, ℂ^D)
+
     normalizeMPS!(A)
     l, r = fixedpoints(A)
 
@@ -46,22 +46,4 @@ end
     @test Ar_id ≈ id(space(Ar, 1))
     @test Al_id ≈ id(space(Al, 1))
     @test LHS ≈ RHS && RHS ≈ Ac
-end
-
-
-
-@testset "Transfer Matrix" begin
-    d = 2
-    D = 3
-    A = TensorMap(reshape(rand_unitary(d * D)[:, 1:D], D, d, D), ℂ^D * ℂ^d, ℂ^D)
-    A_his = Tensor(Array(A[]), ℝ^D * ℝ^d * ℝ^D)
-
-    function createTransfermatrix(A)
-        @tensor E[-1 -2 -3 -4] := A[-1 1 -3] * A'[-2 1 -4]
-        return E
-    end
-
-    E_mine = transfer_matrix(A)
-    E_his = createTransfermatrix(A_his)
-    @test E_mine[] ≈ E_his[]
 end

@@ -1,9 +1,10 @@
-using TensorKit
-using Yao, LinearAlgebra
 
 function xxx_ham()
-    local_term = Array(reshape(mat((kron(X, X) + kron(Y, Y) + kron(Z, Z)) / 4.0), 2, 2, 2, 2))
-    return TensorMap(local_term, ℂ^2 * ℂ^2, ℂ^2 * ℂ^2)
+
+    Sx = TensorMap(ComplexF64[0 1; 1 0], ℂ^2 ← ℂ^2)
+    Sy = TensorMap(ComplexF64[0 -im; im 0], ℂ^2 ← ℂ^2)
+    Sz = TensorMap(ComplexF64[1 0; 0 -1], ℂ^2 ← ℂ^2)
+    return (Sx ⊗ Sx + Sy ⊗ Sy + Sz ⊗ Sz) / 4.0
 end
 
 function energy_density(h::TensorMap, AL::TensorMap, AC::TensorMap)

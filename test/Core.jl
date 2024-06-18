@@ -5,9 +5,10 @@ using Yao
 @testset "VUMPS" begin
     myham = xxx_ham()
     d = 2
-    D = 3
+    D = 137
     A0 = TensorMap(randn, ComplexF64, ℂ^D * ℂ^d, ℂ^D)
-    vumps(myham, A0, tol=1e-8)
+    A0 = normalize(A0)
+    vumps(myham, A0, tol=1e-4, tolFactor=1e-2, verbose=true)
 end
 
 

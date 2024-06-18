@@ -1,32 +1,36 @@
-using TensorKit, KrylovKit
-
-function transfer_matrix(A::TensorMap)
-    # k---A---i        k-----------i
-    #     a        =         E
-    # l---A*---j       l-----------j 
-    @tensor E[-1 -2; -3 -4] := A[-1, 1, -3] * conj(A[-2, 1, -4])
+function transfer_matrix(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
+    # -1---A----3        -1------------3
+    #      1        =           E
+    # -2---A*----4       -2------------4 
+    @tensor E[-1 -2; -3 -4] := A[-1 1 -3] * conj(A[-2 1 -4])
     return E
 end
 
-function normalizeMPS!(A::TensorMap)
+function normalizeMPS!(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     evals, _, _ =
-        eigsolve(TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), 1, :LM) do v
+        eigsolve(TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)), 1, :LM) do v
             @tensor v_out[-1; -2] := A[-1 2 1] * conj(A[-2 2 3]) * v[1; 3]
         end
     A /= sqrt(evals[1])
     return A
 end
 
-function normalizeMPS(A::TensorMap)
+function normalizeMPS(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     A_copy = copy(A)
     return normalizeMPS!(A_copy)
 end
 
-function leftFixedPoint(A::TensorMap)
+myrandisometry(dims::Base.Dims{2}) = randisometry(Float64, dims)
+function myrandisometry(::Type{T}, dims::Base.Dims{2}) where {T<:Number}
+    return dims[1] >= dims[2] ? rand_unitary(dims[1])[:, 1:dims[2]] :
+           throw(DimensionMismatch("cannot create isometric matrix with dimensions $dims; isometry needs to be tall or square"))
+end
+
+function leftFixedPoint(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     E = transfer_matrix(A)
 
     _, eigvecs, _ =
-        eigsolve(TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), 1, :LM) do v
+        eigsolve(TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)), 1, :LM) do v
             @tensor v_out[-1; -2] := v[2; 1] * E[1 2; -2 -1]
         end
 
@@ -37,11 +41,11 @@ function leftFixedPoint(A::TensorMap)
     return l
 end
 
-function rightFixedPoint(A::TensorMap)
+function rightFixedPoint(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     E = transfer_matrix(A)
 
     _, eigvecs, _ =
-        eigsolve(TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), 1, :LM) do v
+        eigsolve(TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)), 1, :LM) do v
             @tensor v_out[-1; -2] := E[-1 -2; 1 2] * v[1; 2]
         end
 
@@ -52,14 +56,13 @@ function rightFixedPoint(A::TensorMap)
     return r
 end
 
-function fixedpoints(A::TensorMap)
+function fixedpoints(A::AbstractTensorMap{S,N1,N2}) where {S,N1,N2}
     l, r = leftFixedPoint(A), rightFixedPoint(A)
-
     trace = tr(l * r)
     return l / trace, r
 end
 
-function leftOrthonormalize(A::TensorMap, Lprev::TensorMap=TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)); tol::Float64=1e-14, maxiter::Int64=100000)
+function leftOrthonormalize(A::AbstractTensorMap, Lprev::AbstractTensorMap=TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)); tol::Float64=1e-14, maxiter::Int64=100000)
     tol = max(tol, 1e-14)
 
     Lprev /= norm(Lprev)
@@ -83,7 +86,7 @@ function leftOrthonormalize(A::TensorMap, Lprev::TensorMap=TensorMap(randn, elty
 end
 
 
-function rightOrthonormalize(A::TensorMap, Rprev::TensorMap=TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)); tol::Float64=1e-14, maxiter::Int64=100000)
+function rightOrthonormalize(A::AbstractTensorMap, Rprev::AbstractTensorMap=TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)); tol::Float64=1e-14, maxiter::Int64=100000)
     tol = max(tol, 1e-14)
 
     Rprev /= norm(Rprev)
@@ -107,7 +110,7 @@ function rightOrthonormalize(A::TensorMap, Rprev::TensorMap=TensorMap(randn, elt
     return R, Ar
 end
 
-function mixedCanonical(A::TensorMap; L0::TensorMap=TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), R0::TensorMap=TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), tol::Float64=1e-14, maxiter::Int64=100000)
+function mixedCanonical(A::AbstractTensorMap; L0::AbstractTensorMap=TensorMap(randn, eltype(A), space(A, 1) ← space(A, 1)), R0::TensorMap=TensorMap(randn, eltype(A), codomain(A, 1) ← domain(A, 1)), tol::Float64=1e-14, maxiter::Int64=100000)
     tol = max(1e-14, tol)
 
     L, Al = leftOrthonormalize(A, L0; tol=tol, maxiter=maxiter)
