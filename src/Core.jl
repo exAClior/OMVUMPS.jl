@@ -1,13 +1,18 @@
-
 function xxx_ham()
-
-    Sx = TensorMap(ComplexF64[0 1; 1 0], ℂ^2 ← ℂ^2)
-    Sy = TensorMap(ComplexF64[0 -im; im 0], ℂ^2 ← ℂ^2)
-    Sz = TensorMap(ComplexF64[1 0; 0 -1], ℂ^2 ← ℂ^2)
-    return (Sx ⊗ Sx + Sy ⊗ Sy + Sz ⊗ Sz) / 4.0
+    Sx = TensorMap(ComplexF64[0 1; 1 0] / 2.0, ℂ^2 ← ℂ^2)
+    Sy = TensorMap(ComplexF64[0 -im; im 0] / 2.0, ℂ^2 ← ℂ^2)
+    Sz = TensorMap(ComplexF64[1 0; 0 -1] / 2.0, ℂ^2 ← ℂ^2)
+    return (Sx ⊗ Sx + Sy ⊗ Sy + Sz ⊗ Sz)
 end
 
-function energy_density(h::TensorMap, AL::TensorMap, AC::TensorMap)
+function tfi_ham()
+    Sx = TensorMap(ComplexF64[0 1; 1 0] / 2.0, ℂ^2 ← ℂ^2)
+    Sz = TensorMap(ComplexF64[1 0; 0 -1] / 2.0, ℂ^2 ← ℂ^2)
+    I = id(ℂ^2)
+    return -(Sx ⊗ Sx) - (Sz ⊗ I + I ⊗ Sz) / 2.0
+end
+
+function energy_density(h::AbstractTensorMap, AL::AbstractTensorMap, AC::AbstractTensorMap)
     # implements (35)
     # AL( b * i,a)
     # b -- AL -- a -- AC --d
